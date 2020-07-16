@@ -10,6 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let server_url = &args[1];
     let player_key = &args[2];
 
+    println!("{} Free Tacos!", rand::random::<usize>());
     println!("ServerUrl: {}; PlayerKey: {}", server_url, player_key);
 
     let client = Client::new();
