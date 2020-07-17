@@ -4,4 +4,4 @@
 
 Set the tacos free!
 
-Now with more more discord notifcations!
+Now with more more more discord notifcations!
