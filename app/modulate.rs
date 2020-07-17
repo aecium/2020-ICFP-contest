@@ -81,6 +81,9 @@ fn parseToken(input : &BitVec) -> Vec<i64> {
                     }
                 }
                 let mut num : i64 = magnitude as i64;
+                if (!*isPositive) {
+                    num = num * -1
+                }
                 numbers.push(num);
                 myState = State::NumComplete;
             }
@@ -104,5 +107,11 @@ mod tests {
         let msg = bitvec![1,1,0,1,1,0,0,0,0,1,1,1,0,1,1,1,1,1,1,0,0,0,0,1,0,0,1,1,1,0,1,0,1,1,1,0,0,1,0,0,0,0];
         let result = parseToken(&msg);
         assert_eq!(vec![1,80612], result);
+    }
+    #[test]
+    fn parse_their_msg_but_neg() {
+        let msg = bitvec![1,1,0,1,1,0,0,0,0,1,1,1,1,0,1,1,1,1,1,0,0,0,0,1,0,0,1,1,1,0,1,0,1,1,1,0,0,1,0,0,0,0];
+        let result = parseToken(&msg);
+        assert_eq!(vec![1,-80612], result);
     }
 }
