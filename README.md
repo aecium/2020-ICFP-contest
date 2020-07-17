@@ -3,3 +3,5 @@
 ## Manifesto
 
 Set the tacos free!
+
+Now with more discord notifcations!
