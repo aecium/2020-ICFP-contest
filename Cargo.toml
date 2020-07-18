@@ -8,6 +8,10 @@ edition = "2018"
 name = "app"
 path = "app/main.rs"
 
+[[bin]]
+name = "runner"
+path = "src/runner/main.rs"
+
 [dependencies]
 rand = "0.7.3"
 tokio = { version = "0.2.21", features = ["macros"] }

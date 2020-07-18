@@ -3,3 +3,6 @@
 ## Manifesto
 
 Set the tacos free!
+
+## Run the galaxy.txt Parser
+cargo run --bin runner
