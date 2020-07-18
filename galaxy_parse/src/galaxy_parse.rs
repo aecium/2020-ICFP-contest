@@ -16,6 +16,7 @@ pub enum Ops {
     Sum,
     Mul,
     Div,
+    Neg,
     Eq,
     Lt,
     SComb,
@@ -26,14 +27,10 @@ pub enum Ops {
     FChoice,
 }
 
-impl Ops {
-    fn arity(&self) -> usize {
-        0
-    }
-}
-
 fn parse_literal(input : &'_ str) -> IResult<&'_ str, Ops> {
-    nom::combinator::map_parser(nom::character::complete::digit1, |digits: &str| -> IResult<&'_ str, Ops>{
+    
+    nom::combinator::map_parser(
+        nom::bytes::complete::take_till(|c| c == ' '), |digits: &str| -> IResult<&'_ str, Ops>{
         match digits.parse::<i128>() {
             Ok(num) => Ok((&input[digits.len()..input.len()], Ops::Literal(num))),
             _ => IResult::Err(nom::Err::Error(nom::error::make_error(input, nom::error::ErrorKind::IsNot)))
@@ -43,6 +40,8 @@ fn parse_literal(input : &'_ str) -> IResult<&'_ str, Ops> {
 
 fn parse_func(input : &'_ str) -> IResult<&'_ str, Ops> {
     nom::branch::alt((
+        //IsNil
+        nom::combinator::map(nom::bytes::complete::tag("isnil"), |_| Ops::IsNil),
         //ap
         nom::combinator::map(nom::sequence::tuple((
             nom::bytes::complete::tag("ap"),
@@ -63,6 +62,12 @@ fn parse_func(input : &'_ str) -> IResult<&'_ str, Ops> {
         nom::combinator::map(nom::bytes::complete::tag("mul"), |_| Ops::Mul),
         //div
         nom::combinator::map(nom::bytes::complete::tag("div"), |_| Ops::Div),
+        //neg
+        nom::combinator::map(nom::bytes::complete::tag("neg"), |_| Ops::Neg),
+        //Car
+        nom::combinator::map(nom::bytes::complete::tag("car"), |_| Ops::Car),
+        //Cdr
+        nom::combinator::map(nom::bytes::complete::tag("cdr"), |_| Ops::Cdr),
         //eq
         nom::combinator::map(nom::bytes::complete::tag("eq"), |_| Ops::Eq),
         //lt
@@ -79,12 +84,6 @@ fn parse_func(input : &'_ str) -> IResult<&'_ str, Ops> {
         nom::combinator::map(nom::bytes::complete::tag("f"), |_| Ops::FChoice),
         //IComb
         nom::combinator::map(nom::bytes::complete::tag("i"), |_| Ops::IComb),
-        //Car
-        nom::combinator::map(nom::bytes::complete::tag("car"), |_| Ops::Car),
-        //Cdr
-        nom::combinator::map(nom::bytes::complete::tag("cdr"), |_| Ops::Cdr),
-        //IsNil
-        nom::combinator::map(nom::bytes::complete::tag("isnil"), |_| Ops::IsNil),
     ))(input)
 }
 
@@ -112,9 +111,7 @@ fn parse_list(input : &'_ str) -> IResult<&'_ str, Ops> {
     ) (input)
 }
 
-
-
-pub fn parse_symbol(input : &'_ str) -> IResult<&'_ str, Ops> {
+fn parse_symbol(input : &'_ str) -> IResult<&'_ str, Ops> {
     nom::branch::alt((
         parse_list,
         parse_literal,
@@ -126,7 +123,8 @@ pub fn parse_symbol(input : &'_ str) -> IResult<&'_ str, Ops> {
 pub fn parse_line(input : &'_ str) -> IResult<&'_ str, (&'_ str, Ops)> {
     nom::combinator::all_consuming(
         nom::combinator::map(nom::sequence::tuple((
-            nom::sequence::preceded(nom::character::complete::char(':'), nom::character::complete::alphanumeric1),
+            nom::bytes::complete::take_till(|c| c == ' '),
+            //nom::sequence::preceded(nom::character::complete::char(':'), nom::character::complete::alphanumeric1),
             nom::sequence::preceded(nom::character::complete::space1,nom::character::complete::char('=')),
             nom::sequence::preceded(nom::character::complete::space1,parse_symbol)
         )), |(label, _, op)| (label, op))
@@ -238,6 +236,15 @@ mod tests {
         }
     }
     #[test]
+    fn test_parse_sym_isnil() {
+        let (remainder, op) = (parse_symbol("isnil")).unwrap();
+        assert_eq!(remainder, "");
+        match op {
+            Ops::IsNil => assert!(true),
+            _ => assert!(false)
+        };
+    }
+    #[test]
     fn test_parse_list_multi() {
         let (remainder, op) = (parse_symbol("( 1 , 2 , 3 )")).unwrap();
         assert_eq!(remainder, "");
@@ -254,5 +261,33 @@ mod tests {
             Ops::List(x) => assert_eq!(x.len(), 3),
             _ => assert!(false)
         }
+    }
+    #[test]
+    fn test_parse_variable() {
+        let (remainder, op) = (parse_symbol(":1162")).unwrap();
+        assert_eq!(remainder, "");
+        match op {
+            Ops::Variable(label) => assert_eq!(label, "1162"),
+            _ => assert!(false)
+        }
+    }
+    #[test]
+    fn test_parse_variable_under_ap() {
+        let (remainder, op) = (parse_symbol("ap :1162 1")).unwrap();
+        assert_eq!(remainder, "");
+        match op {
+            Ops::Ap(left, right) => {
+                match *left {
+                    Ops::Variable(label) => assert_eq!(label, "1162"),
+                    _ => assert!(false)
+                }
+            }
+            _ => assert!(false)
+        }
+    }
+    #[test]
+    fn test_parse_line_1116() {
+        let (remainder, op) = (parse_symbol("ap ap s ap ap b c isnil car")).unwrap();
+        assert_eq!(remainder, "");
     }
 }
