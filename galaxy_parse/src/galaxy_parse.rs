@@ -27,15 +27,29 @@ pub enum Ops {
     FChoice,
 }
 
-pub struct OpsIterator {
-    ops: Vec<Ops>
+pub struct OpsIterator<'a> {
+    ops: Vec<&'a Ops>
 }
 
-impl Iterator for OpsIterator {
-    type Item = Ops;
+impl<'a> Iterator for OpsIterator<'a> {
+    type Item = &'a Ops;
 
-    fn next(&mut self) -> Option<Ops> {
-        None
+    fn next(&mut self) -> Option<&'a Ops> {
+        //pop first node off the stack, if nothings there, the iterator must be exhausted
+        let node = self.ops.pop();
+        node.and_then( |op| -> Option<&'a Ops>{
+            //am I arity zero? if yes return me
+            if op.arity() == 0 {
+                Some(op)
+            } else {
+                //put right children on the stack (only until they reach arity zero)        
+                if let Ops::Ap(_, right) = op {
+                    self.ops.push(&right);
+                };
+                //recurse, since I couldn't return something
+                self.next()
+            }
+        })
     }
 }
 
@@ -51,17 +65,20 @@ impl Ops {
         }
     }
 
-    fn construct_initial_stack(node : &Self, stack: &mut Vec<Ops>) {
-
-    }
+    
 }
-impl IntoIterator for Ops {
-    type Item = Ops;
-    type IntoIter = OpsIterator;
+impl<'a> IntoIterator for &'a Ops {
+    type Item = &'a Ops;
+    type IntoIter = OpsIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
+        let mut nodes = Vec::<&'a Ops>::new();
         //push all the left kids
-        let mut nodes = Vec::<Ops>::new();
+        let mut current_node : &'a Ops = self;
+        while let Ops::Ap(left, _ ) = current_node {
+            nodes.push(current_node);
+            current_node = left;
+        }
         
         return OpsIterator {
             ops: nodes
@@ -331,5 +348,42 @@ mod tests {
     fn test_parse_line_1116() {
         let (remainder, op) = (parse_symbol("ap ap s ap ap b c isnil car")).unwrap();
         assert_eq!(remainder, "");
+    }
+    #[test]
+    fn test_iter_simple() {
+        let optree = Ops::Ap(Box::new(Ops::Sum), Box::new(Ops::Literal(1)));
+        let mut iter = optree.into_iter();
+        match iter.next() {
+            Some(Ops::Literal(one)) => assert_eq!(*one, 1i128),
+            _ => assert!(false)
+        };
+        match iter.next() {
+            None => assert!(true),
+            _ => assert!(false)
+        };
+
+    }
+    #[test]
+    fn test_iter_complex() {
+        let optree = Ops::Ap(Box::new(Ops::Ap(Box::new(Ops::IsNil),Box::new(Ops::Nil))), Box::new(Ops::Ap(Box::new(Ops::Inc),Box::new(Ops::Literal(1)))));
+        let mut iter = optree.into_iter();
+        match iter.next() {
+            Some(Ops::Nil) => {},
+            _ => assert!(false)
+        };
+        match iter.next() {
+            Some(Ops::Ap(left,right)) => {
+                match **left {
+                    Ops::Inc => {}
+                    _ => assert!(false)
+                }
+                match **right {
+                    Ops::Literal(one) => assert_eq!(one, 1i128),
+                    _ => assert!(false)
+                }
+            }
+            _ => assert!(false)
+        };
+
     }
 }
