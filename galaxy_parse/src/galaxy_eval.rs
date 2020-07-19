@@ -27,23 +27,29 @@ fn find_op_type(op : &Ops) -> &Ops{
 }
 
 fn eval_ops (op : &Ops) -> EvalOpsResult {
-    if let Ops::Ap(left, _) = op{
+    if let Ops::Ap(left, right) = op{
         if op.arity() > 0 {
             EvalOpsResult::Noop
         } else {
+            
             //EvalOpsResult::NewOps(Ops::Nil)
             //find out my function by going down the left until it's not an Ap
-            let opType = find_op_type(op);
+            let op_type = find_op_type(op);
             //look up the arity of that function (maybe not needed)
             //create an iterator over all A0 elements of the list (but not the root!)
-            
-            //recurse and eval_ops each of them (map?!) (literals will remain literals, while aps will resolve)
+            let arg_iter = left.into_iter().chain(right.into_iter());
             //use iterator to compute A0 result
+            let replacement_op = eval_op(op_type, arg_iter);
+            //recurse and see if the root can be reduced again (those crafty combinators)
             //return
-
             EvalOpsResult::NewOps(Ops::Nil)
         }
     } else {
         EvalOpsResult::Noop
     }
+}
+
+fn eval_op<'a> (op: &Ops, input : std::iter::Chain<OpsIterator, OpsIterator>) -> Ops {
+    //TODO stub for Aecium
+    Ops::Nil
 }
