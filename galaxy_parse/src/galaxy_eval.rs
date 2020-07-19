@@ -37,9 +37,9 @@ fn eval_ops (op : &Ops) -> EvalOpsResult {
             let op_type = find_op_type(op);
             //look up the arity of that function (maybe not needed)
             //create an iterator over all A0 elements of the list (but not the root!)
-            let arg_iter = left.into_iter().chain(right.into_iter());
+            let mut arg_iter = left.into_iter().chain(right.into_iter());
             //use iterator to compute A0 result
-            let replacement_op = eval_op(op_type, arg_iter);
+            let replacement_op = eval_op(op_type, &mut arg_iter);
             //recurse and see if the root can be reduced again (those crafty combinators)
             //return
             EvalOpsResult::NewOps(Ops::Nil)
@@ -49,11 +49,15 @@ fn eval_ops (op : &Ops) -> EvalOpsResult {
         }
 }   
 
-fn eval_op<'a> (op: &Ops, input : std::iter::Chain<OpsIterator, OpsIterator>) -> Ops {
-       //TODO stub for Aecium
+fn eval_op<'a> (op: &Ops, input : &mut std::iter::Chain<OpsIterator<'a>, OpsIterator<'a>>) -> Ops {
     match op {
         Cons => {
-
+//            let first = input.next().unwrap();
+//            let second = input.next().unwrap();
+//            let second_simplified = eval_ops(second);
+//            let first_num = match eval_ops(first) {
+//                None
+//            }
         },
         Car => {
 
@@ -68,17 +72,23 @@ fn eval_op<'a> (op: &Ops, input : std::iter::Chain<OpsIterator, OpsIterator>) ->
 
         },
         Inc => {
-            let _inop = match input.next(){
-                Some(x) => x,
-                None => panic!("No opreand past to Inc.")
-            };
-            let _op = eval_ops(_inop);
-            match _op {
-                Noop => {
-                    return _inop.0 + 1;
+            let inop = input.next().unwrap();
+            let op = eval_ops(inop);
+            match op {
+                EvalOpsResult::Noop => {
+                    // no new operation was found, use the old one and evaluate
+                    if let Ops::Literal(x) = inop {
+                        return Ops::Literal(x + 1);
+                    } else {
+                        panic!("Inc doesn't understand how to increment a {:?}", inop)
+                    }
                 },
-                EvalOpsResult::NewOps(_newop) => {
-                    return _newop + 1;
+                EvalOpsResult::NewOps(newop) => {
+                    if let Ops::Literal(x) = newop {
+                        return Ops::Literal(x + 1);
+                    } else {
+                        panic!("Inc doesn't understand how to increment a {:?}", newop);
+                    }
                 }
             };
         },
