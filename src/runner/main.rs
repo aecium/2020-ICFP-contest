@@ -15,10 +15,13 @@ fn read_file_lines(filename: impl AsRef<Path>) -> Vec<String> {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-   let filename = &args[1];
+    let filename = &args[1];
     let entrypoint = &args[2];
 
     let mut state = State::load(read_file_lines(filename));
+
+    println!("Evaluating entrypoint {} ({})", entrypoint, state.get_line(entrypoint).src);
+
     state.execute(entrypoint);
 
     println!();
@@ -98,15 +101,47 @@ impl State {
                     v.push(num.unwrap());
                     symbols.push(Symbol::Value(v));
                 } else if s.eq("ap") {
-                    continue;
+                    symbols.push(Symbol::Ap);
                 } else if s.starts_with(":") {
                     symbols.push(Symbol::Variable(s.to_string()));
                 } else if s.eq("cons") {
                     symbols.push(Symbol::Cons);
                 } else if s.eq("neg") {
-                    symbols.push(Symbol::Negate);
+                    symbols.push(Symbol::Neg);
                 } else if s.eq("nil") {
                     symbols.push(Symbol::Value(Vec::new()));
+                } else if s.eq("isnil") {
+                    symbols.push(Symbol::IsNil);
+                } else if s.eq("inc") {
+                    symbols.push(Symbol::Inc);
+                } else if s.eq("dec") {
+                    symbols.push(Symbol::Dec);
+                } else if s.eq("add") {
+                    symbols.push(Symbol::Sum);
+                } else if s.eq("mul") {
+                    symbols.push(Symbol::Mul);
+                } else if s.eq("div") {
+                    symbols.push(Symbol::Div);
+                } else if s.eq("car") {
+                    symbols.push(Symbol::Car);
+                } else if s.eq("cdr") {
+                    symbols.push(Symbol::Cdr);
+                } else if s.eq("eq") {
+                    symbols.push(Symbol::Eq);
+                } else if s.eq("lt") {
+                    symbols.push(Symbol::Lt);
+                } else if s.eq("s") {
+                    symbols.push(Symbol::SComb);
+                } else if s.eq("c") {
+                    symbols.push(Symbol::CComb);
+                } else if s.eq("b") {
+                    symbols.push(Symbol::BComb);
+                } else if s.eq("t") {
+                    symbols.push(Symbol::TChoice);
+                } else if s.eq("f") {
+                    symbols.push(Symbol::FChoice);
+                } else if s.eq("i") {
+                    symbols.push(Symbol::IComb);
                 } else {
                     //println!();
                     //println!("Line {}: Error parsing symbol.", i);
@@ -147,54 +182,14 @@ impl State {
     }
 
     fn eval(&mut self, symbols: Vec<Symbol>) -> (Vec<Symbol>, Vec<Symbol>) {
+        println!("eval({:?})", symbols);
         let mut value: Vec<Symbol> = Vec::new();
-        let mut symbols = symbols.to_vec();
-        while symbols.len() > 0 {
-            let s = symbols.remove(0);
+        let mut remaining_symbols = symbols.to_vec();
+        let mut ap = 0;
+        while remaining_symbols.len() > 0 {
+            println!("while remaining: {:?}", remaining_symbols);
+            let s = remaining_symbols.remove(0);
             match s.clone() {
-                Symbol::Value(_val) => {
-                    value.push(s);
-                    //value = val.to_vec();
-                    break;
-                },
-                Symbol::Cons => {
-                    let (op1, remaining) = self.eval(symbols.clone());
-                    let (op2, remaining) = self.eval(remaining);
-                    let mut ops: Vec<Symbol> = op1.to_vec();
-                    ops.extend(op2);
-                    let mut values: Vec<i64> = Vec::new();
-                    for op in ops {
-                        match op {
-                            Symbol::Value(vec) => {
-                                values.extend(vec);
-                            },
-                            _ => {
-                                panic!("Awe, snap!");
-                            }
-                        }
-                        
-                    }
-                    symbols = remaining.to_vec();
-                    symbols.push(Symbol::Value(values));
-                },
-                Symbol::Negate => {
-                    let (op1, remaining) = self.eval(symbols.clone());
-                    let ops: Vec<Symbol> = op1.to_vec();
-                    let mut values: Vec<i64> = Vec::new();
-                    for op in ops {
-                        match op {
-                            Symbol::Value(vec) => {
-                                values.extend(vec);
-                            },
-                            _ => {
-                                panic!("Awe, snap!");
-                            }
-                        }
-                        
-                    }
-                    symbols = remaining.to_vec();
-                    symbols.push(Symbol::Value(values));
-                },
                 Symbol::Variable(key) => {
                     println!("variable key: {}", key);
                     let index = self.keys.get(&key).expect("Unknown variable!").clone();
@@ -206,28 +201,290 @@ impl State {
                         self.lines[index].has_value = true;
                     }
                     let mut extended = self.mem[index].clone();
-                    extended.extend(symbols);
-                    symbols = extended;
+                    extended.extend(remaining_symbols);
+                    remaining_symbols = extended;
                 }
+                Symbol::Ap => {
+                    ap += 1;
+                },
+                Symbol::Value(_val) => {
+                    value.push(s.clone());
+                    break;
+                },
+                Symbol::Nil => {
+                    value.push(Symbol::Value(Vec::new()));
+                    break;
+                },
+                Symbol::Inc => {
+                    if ap < 1 {
+                        value.push(Symbol::Inc);
+                    } else {
+                        ap -= 1;
+                        let (op1, remaining) = self.eval(remaining_symbols.clone());
+                        remaining_symbols = remaining;
+                        let val = unwrap_single_value(op1);
+                        value.push(wrap_single_val(val+1));
+                    }
+                    break;
+                },
+                Symbol::Dec => {
+                    if ap < 1 {
+                        value.push(Symbol::Inc);
+                    } else {
+                        ap -= 1;
+                        let (op1, remaining) = self.eval(remaining_symbols.clone());
+                        remaining_symbols = remaining;
+                        let val = unwrap_single_value(op1);
+                        value.push(wrap_single_val(val-1));
+                    }
+                    break;
+                },
+                Symbol::Sum => {
+                    if ap < 2 {
+                        value.push(Symbol::Sum);
+                        if ap == 1 {
+                            ap-=1;
+                            value.push(Symbol::Ap);
+                            panic!("Extra ap detected.");
+                        }
+                    } else {
+                        ap -= 2;
+                        let (op1, remaining) = self.eval(remaining_symbols.clone());
+                        let (op2, remaining) = self.eval(remaining);
+                        remaining_symbols = remaining;
+                        let val1 = unwrap_single_value(op1);
+                        let val2 = unwrap_single_value(op2);
+                        value.push(wrap_single_val(val1+val2));
+                    }
+                    break;
+                },
+                Symbol::Mul => {
+                    if ap < 2 {
+                        value.push(Symbol::Sum);
+                        if ap == 1 {
+                            ap-=1;
+                            value.push(Symbol::Ap);
+                            panic!("Extra ap detected.");
+                        }
+                    } else {
+                        ap -= 2;
+                        let (op1, remaining) = self.eval(remaining_symbols.clone());
+                        let (op2, remaining) = self.eval(remaining);
+                        remaining_symbols = remaining;
+                        let val1 = unwrap_single_value(op1);
+                        let val2 = unwrap_single_value(op2);
+                        value.push(wrap_single_val(val1*val2));
+                    }
+                    break;
+                },
+                Symbol::Div => {
+                    if ap < 2 {
+                        value.push(Symbol::Sum);
+                        if ap == 1 {
+                            ap-=1;
+                            value.push(Symbol::Ap);
+                            panic!("Extra ap detected.");
+                        }
+                    } else {
+                        ap -= 2;
+                        let (op1, remaining) = self.eval(remaining_symbols.clone());
+                        let (op2, remaining) = self.eval(remaining);
+                        remaining_symbols = remaining;
+                        let val1 = unwrap_single_value(op1);
+                        let val2 = unwrap_single_value(op2);
+                        value.push(wrap_single_val(val1/val2));
+                    }
+                    break;
+                },
+                Symbol::Eq => {
+                    if ap < 2 {
+                        value.push(Symbol::Sum);
+                        if ap == 1 {
+                            ap-=1;
+                            value.push(Symbol::Ap);
+                            panic!("Extra ap detected.");
+                        }
+                    } else {
+                        ap -= 2;
+                        let (op1, remaining) = self.eval(remaining_symbols.clone());
+                        let (op2, remaining) = self.eval(remaining);
+                        remaining_symbols = remaining;
+                        let val1 = unwrap_single_value(op1);
+                        let val2 = unwrap_single_value(op2);
+                        value.push(if val1 == val2 {
+                            Symbol::TChoice
+                        } else {
+                            Symbol::FChoice
+                        })
+                    }
+                    break;
+                },
+                Symbol::Neg => {
+                    if ap < 1 {
+                        value.push(Symbol::Neg);
+                    } else {
+                        ap -= 1;
+                        let (op1, remaining) = self.eval(remaining_symbols.clone());
+                        remaining_symbols = remaining;
+                        let val = unwrap_single_value(op1);
+                        value.push(wrap_single_val(-val));
+                    }
+                    break;
+                },
+                Symbol::Cons => {
+                    println!("Cons ap: {} - remaining {:?}", ap, remaining_symbols);
+                    if ap < 2 {
+                        if ap == 1 {
+                            ap-=1;
+                            value.push(Symbol::Ap);
+                            panic!("Extra ap detected.");
+                        }
+                        value.push(Symbol::Cons);
+                    } else {
+                        ap -= 2;
+                        let (op1, remaining) = self.eval(remaining_symbols.clone());
+                        let (op2, remaining) = self.eval(remaining);
+                        let mut ops: Vec<Symbol> = op1.to_vec();
+                        ops.extend(op2);
+                        let mut values: Vec<i64> = Vec::new();
+                        for op in ops {
+                            match op {
+                                Symbol::Value(vec) => {
+                                    values.extend(vec);
+                                },
+                                _ => {
+                                    println!("Symbol: {:?}", op);
+                                    panic!("Awe, snap!");
+                                }
+                            }
+                            
+                        }
+                        remaining_symbols = remaining.to_vec();
+                        value.push(Symbol::Value(values));
+                    }
+                    break;
+                },
+                Symbol::SComb => {
+                    if ap < 3 {
+                        if ap > 0 {
+                            panic!("Extra ap detected.");
+                        }
+                        value.push(Symbol::SComb);
+                    } else {
+                        ap -= 3;
+                        let (x0, remaining) = self.eval(remaining_symbols.clone());
+                        let (x1, remaining) = self.eval(remaining);
+                        let (x2, remaining) = self.eval(remaining);
+                        println!("SComb x0: {:?} x1: {:?} x2: {:?} remaining: {:?}", x0, x1, x2, remaining);
+                        let mut replacement = Vec::new();
+                        replacement.push(Symbol::Ap);
+                        replacement.push(Symbol::Ap);
+                        replacement.extend(x0);
+                        replacement.extend(x2.clone());
+                        replacement.push(Symbol::Ap);
+                        replacement.extend(x1);
+                        replacement.extend(x2);
+                        replacement.extend(remaining);
+                        remaining_symbols = replacement;
+                    }
+                    println!("SComb remaining: {:?}", &remaining_symbols);
+                },
+                Symbol::CComb => {
+                    if ap < 3 {
+                        if ap > 0 {
+                            panic!("Extra ap detected.");
+                        }
+                        value.push(Symbol::CComb);
+                    } else {
+                        ap -= 3;
+                        let (op1, remaining) = self.eval(remaining_symbols.clone());
+                        let (op2, remaining) = self.eval(remaining);
+                        let (op3, remaining) = self.eval(remaining);
+                        println!("CComb op1: {:?} op2: {:?} op3: {:?} remaining: {:?}", op1, op2, op3, remaining);
+                        let mut replacement = Vec::new();
+                        replacement.push(Symbol::Ap);
+                        replacement.push(Symbol::Ap);
+                        replacement.extend(op1);
+                        replacement.extend(op3);
+                        replacement.extend(op2);
+                        replacement.extend(remaining);
+                        remaining_symbols = replacement;
+                    }
+                    println!("CComb remaining: {:?}", &remaining_symbols);
+                },
                 _ => {
+                    println!("Please implement {:?}", s);
                     panic!("Please implement {:?}", s);
                 }
             };
         }
-        (value, symbols)
+        if ap > 0 {
+            println!("ap > 0 (ap=={})", ap);
+        }
+        while ap > 0{
+            value.insert(0, Symbol::Ap);
+            ap -= 1;
+            panic!("Extra ap detected.");
+        }
+        //println!("eval({:?}) -> (value: {:?}, remaining: {:?})", symbols, value, remaining_symbols);
+        (value, remaining_symbols)
     }
 }
 
+fn unwrap_single_value(value: Vec<Symbol>) -> i64 {
+    match value.len() {
+        0 => panic!("Unpossible"),
+        1 => {
+            let op = value.get(0).expect("Unpossible");
+            match op {
+                Symbol::Value(vec) => {
+                    match vec.len() {
+                        1 => {
+                            return vec.get(0).expect("Unpossible").clone();
+                        },
+                        _ => panic!("Unpossible"),
+                    }
+                },
+                _ => panic!("Unpossible"),
+            }
+        },
+        _ => panic!("Multiple Values!"),
+    }
+}
 
-
-
+fn wrap_single_val(val: i64) -> Symbol {
+    let mut vals = Vec::new();
+    vals.push(val);
+    Symbol::Value(vals)
+}
 
 #[derive(Clone,Debug)]
 enum Symbol {
     Value(Vec<i64>),
     Variable(String),
+    Ap,
     Cons, //(or Pair)
-    Equality,
+    Eq,
+
+    Car, //(First)
+    Cdr, //(Tail)
+    Nil, //(Empty List)
+    IsNil, //(Is Empty List)
+    Inc,
+    Dec,
+    Sum,
+    Mul,
+    Div,
+    Neg,
+    Lt,
+    SComb,
+    BComb,
+    CComb,
+    IComb,
+    TChoice,
+    FChoice,
+
+    /*
     Successor,
     Predecessor,
     Sum,
@@ -237,7 +494,7 @@ enum Symbol {
     Modulate,
     Demodulate,
     SendNow, //Send
-    Negate,
+    Neg, //Negate
     FuncApp, //Function Application
     SC, //S Combinator
     CC, //C Combinator
@@ -246,10 +503,6 @@ enum Symbol {
     FC, // False
     PowerOfTwo,
     IC, //i Combinator
-    Car, //(First)
-    Cdr, //(Tail)
-    Nil, //(Empty List)
-    IsNil, //(Is Empty List)
     LCS, //List Construction Syntax
     Vector,
     Draw,
@@ -263,4 +516,5 @@ enum Symbol {
     StatesessDraw, //Stateless Drawing Protocol
     StatefullDraw, //Statefull Drawing Protocol
     Galaxy,
+    */
 }
