@@ -44,12 +44,86 @@ fn eval_ops (op : &Ops) -> EvalOpsResult {
             //return
             EvalOpsResult::NewOps(Ops::Nil)
         }
-    } else {
-        EvalOpsResult::Noop
-    }
-}
+        } else {
+            EvalOpsResult::Noop
+        }
+}   
 
 fn eval_op<'a> (op: &Ops, input : std::iter::Chain<OpsIterator, OpsIterator>) -> Ops {
-    //TODO stub for Aecium
+       //TODO stub for Aecium
+    match op {
+        Cons => {
+
+        },
+        Car => {
+
+        },
+        Cdr => {
+
+        },
+        Nil => {
+
+        },
+        IsNil => {
+
+        },
+        Inc => {
+            let _inop = match input.next(){
+                Some(x) => x,
+                None => panic!("No opreand past to Inc.")
+            };
+            let _op = eval_ops(_inop);
+            match _op {
+                Noop => {
+                    return _inop.0 + 1;
+                },
+                EvalOpsResult::NewOps(_newop) => {
+                    return _newop + 1;
+                }
+            };
+        },
+        Dec => {
+          
+        },
+        Sum => {
+
+        },
+        Mul => {
+
+        },
+        Div => {
+
+        },
+        Neg => {
+
+        },
+        Eq => {
+
+        },
+        Lt => {
+
+        },
+        SComb => {
+
+        },
+        BComb => {
+
+        },
+        CComb => {
+
+        },
+        IComb => {
+
+        },
+        TChoice => {
+
+        },
+        FChoice => {
+
+        },
+        _ => {
+            panic!("Not implemented")
+        }
+    }
     Ops::Nil
 }
