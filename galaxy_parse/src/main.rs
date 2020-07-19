@@ -6,6 +6,8 @@ use stacker;
 
 mod galaxy_parse;
 use galaxy_parse::*;
+mod galaxy_eval;
+use galaxy_eval::*;
 
 fn read_file_lines(filename: impl AsRef<Path>) -> Vec<String> {
     let file = File::open(filename).expect("No such file");
@@ -14,8 +16,8 @@ fn read_file_lines(filename: impl AsRef<Path>) -> Vec<String> {
         .map(|l| l.expect("Could not load line"))
         .collect()
 }
-struct Galaxy {
-    data : HashMap<String, Ops>
+pub struct Galaxy {
+    pub data : HashMap<String, Ops>
 }
 
 impl Galaxy {
@@ -40,10 +42,14 @@ impl Galaxy {
 
 fn main() {
     let mut galaxy = Galaxy::new();
-    stacker::grow(1024 * 1024 * 1024, || {
+    stacker::grow(1024 * 1024 * 100, || {
         galaxy.import(read_file_lines("galaxy.txt"));
     });
 
     println!("{:?}", galaxy.data.get("galaxy"));
     println!("{:?}", galaxy.data.get(":1338"));
+
+    println!("{:?}", galaxy.data.get(":1029"));
+    eval(":1029", &mut galaxy);
+    println!("{:?}", galaxy.data.get(":1029"));
 }

@@ -1,6 +1,6 @@
 use nom::IResult;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Ops {
     Literal(i128),
     Variable(String),
@@ -25,6 +25,48 @@ pub enum Ops {
     IComb,
     TChoice,
     FChoice,
+}
+
+pub struct OpsIterator {
+    ops: Vec<Ops>
+}
+
+impl Iterator for OpsIterator {
+    type Item = Ops;
+
+    fn next(&mut self) -> Option<Ops> {
+        None
+    }
+}
+
+impl Ops {
+    pub fn arity (&self) -> usize {
+        match self {
+            Ops::Literal(_) | Ops::Variable(_) | Ops::List(_) | Ops::Nil => 0,
+            Ops::Car | Ops::Cdr | Ops::Inc | Ops::Dec | Ops::Neg | Ops::IComb => 1,
+            Ops::Cons | Ops::Sum | Ops::Mul | Ops::Div | Ops::TChoice | Ops::FChoice => 2,
+            Ops::IsNil | Ops::SComb | Ops::BComb | Ops::CComb => 3,
+            Ops::Eq | Ops::Lt => 4,
+            Ops::Ap(left, _) => left.arity() - 1
+        }
+    }
+
+    fn construct_initial_stack(node : &Self, stack: &mut Vec<Ops>) {
+
+    }
+}
+impl IntoIterator for Ops {
+    type Item = Ops;
+    type IntoIter = OpsIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        //push all the left kids
+        let mut nodes = Vec::<Ops>::new();
+        
+        return OpsIterator {
+            ops: nodes
+        }
+    }
 }
 
 fn parse_literal(input : &'_ str) -> IResult<&'_ str, Ops> {
