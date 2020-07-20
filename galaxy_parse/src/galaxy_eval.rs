@@ -1,21 +1,18 @@
 use crate::galaxy_parse::*;
 use crate::Galaxy;
 
-pub fn eval (label: &str, galaxy: &mut Galaxy) {
+pub fn eval<'a> (label: &str, galaxy: &'a mut Galaxy) -> &'a Ops{
     let root = galaxy.data.get(label);
     dbg!(&root);
     let result = match root {
-        Some(op) => eval_ops(op),
+        Some(op) => eval_ops(op, galaxy),
         None => panic!("That address isn't in this universe!")
     };
     if let EvalOpsResult::NewOps(op) = result {
         galaxy.data.insert(label.to_string(), op);
     }
+    galaxy.data.get(label).unwrap()
     
-}
-enum EvalOpsResult {
-    Noop,
-    NewOps(Ops)
 }
 
 fn find_op_type(op : &Ops) -> &Ops{
@@ -26,8 +23,14 @@ fn find_op_type(op : &Ops) -> &Ops{
     }
 }
 
-fn eval_ops (op : &Ops) -> EvalOpsResult {
-    if let Ops::Ap(left, right) = op{
+enum EvalOpsResult {
+    Noop,
+    NewOps(Ops)
+}
+
+fn eval_ops (op : &Ops, galaxy : &mut Galaxy) -> EvalOpsResult {
+    dbg!(op);
+    if let Ops::Ap(_,_) = op{
         if op.arity() > 0 {
             EvalOpsResult::Noop
         } else {
@@ -37,21 +40,26 @@ fn eval_ops (op : &Ops) -> EvalOpsResult {
             //create an iterator over all A0 elements of the list (but not the root!)
             let mut arg_iter = op.into_iter();
             //use iterator to compute A0 result
-            let replacement_op = eval_op(op_type, &mut arg_iter);
+            let replacement_op = eval_op(op_type, &mut arg_iter, galaxy);
             //recurse and see if the root can be reduced again (those crafty combinators)
             //return
-            match eval_ops(&replacement_op) {
+            match eval_ops(&replacement_op, galaxy) {
                 EvalOpsResult::Noop => EvalOpsResult::NewOps(replacement_op),
                 EvalOpsResult::NewOps(new) => EvalOpsResult::NewOps(new)
             }
             
         }
-        } else {
-            EvalOpsResult::Noop
-        }
+    } else if let Ops::Variable(label) = op {
+        let mut lookup_label = ":".to_owned();
+        lookup_label.push_str(label);
+        let root = eval(&lookup_label, galaxy);
+        eval_ops(root, galaxy)
+    } else {
+        EvalOpsResult::Noop
+    }
 }   
 
-fn eval_op<'a> (op: &Ops, input : &mut OpsIterator) -> Ops {
+fn eval_op<'a> (op: &Ops, input :&mut OpsIterator, galaxy: &mut Galaxy) -> Ops {
     dbg!(op);
     match op {
         Ops::Cons => {
@@ -59,7 +67,7 @@ fn eval_op<'a> (op: &Ops, input : &mut OpsIterator) -> Ops {
             let second = input.next().unwrap();
             dbg!(first);
             dbg!(second);
-            let terms = match (eval_ops(first), eval_ops(second)) {
+            let terms = match (eval_ops(first, galaxy), eval_ops(second, galaxy)) {
                 (EvalOpsResult::Noop, EvalOpsResult::Noop) => (first.clone(),second.clone()),
                 (EvalOpsResult::Noop, EvalOpsResult::NewOps(right)) => (first.clone(),right),
                 (EvalOpsResult::NewOps(left), EvalOpsResult::Noop) => (left,second.clone()),
@@ -89,7 +97,7 @@ fn eval_op<'a> (op: &Ops, input : &mut OpsIterator) -> Ops {
         },
         Ops::Inc => {
             let inop = input.next().unwrap();
-            let op = eval_ops(inop);
+            let op = eval_ops(inop, galaxy);
             match op {
                 EvalOpsResult::Noop => {
                     // no new operation was found, use the old one and evaluate
