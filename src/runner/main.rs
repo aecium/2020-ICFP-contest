@@ -117,7 +117,7 @@ impl State {
                 } else if s.eq("dec") {
                     symbols.push(Symbol::Dec);
                 } else if s.eq("add") {
-                    symbols.push(Symbol::Sum);
+                    symbols.push(Symbol::Add);
                 } else if s.eq("mul") {
                     symbols.push(Symbol::Mul);
                 } else if s.eq("div") {
@@ -185,27 +185,57 @@ impl State {
         println!("eval({:?})", symbols);
         let mut value: Vec<Symbol> = Vec::new();
         let mut remaining_symbols = symbols.to_vec();
-        let mut ap = 0;
+        let mut ap: Vec<Symbol> = Vec::new();
         while remaining_symbols.len() > 0 {
-            println!("while remaining: {:?}", remaining_symbols);
+            println!("while ap: {}  remaining: {:?}", ap.len(), remaining_symbols);
             let s = remaining_symbols.remove(0);
+
+            let arity = arity(&s);
+            if ap.len() < arity {
+                let mut end: Vec<Symbol> = Vec::new();
+                while ap.len() > 0 {
+                    value.push(ap.remove(0));
+                    let (next, remaining) = self.eval(remaining_symbols);
+                    end.extend(next);
+                    remaining_symbols = remaining;
+                }
+                value.push(s.clone());
+                value.extend(end);
+                break;
+            } else {
+                for _ in 0..arity {
+                    ap.remove(0);
+                }
+            }
+
             match s.clone() {
                 Symbol::Variable(key) => {
                     println!("variable key: {}", key);
-                    let index = self.keys.get(&key).expect("Unknown variable!").clone();
+                    if !ap.is_empty() {
+                        let index = self.keys.get(&key).expect("Unknown variable!").clone();
 
-                    if !self.lines[index].has_value {
-                        let (op1, remaining) = self.eval(self.mem[index].clone());
-                        op1.to_vec().extend(remaining);
-                        self.mem[index] = op1;
-                        self.lines[index].has_value = true;
+                        let mut remaining: Vec<Symbol> = Vec::new();
+
+                        while !ap.is_empty() {
+                            remaining.push(ap.remove(0));
+                        }
+
+                        if !self.lines[index].has_value {
+                            let (op1, remaining) = self.eval(self.mem[index].clone());
+                            op1.to_vec().extend(remaining);
+                            self.mem[index] = op1;
+                            self.lines[index].has_value = true;
+                        }
+                        remaining.extend(self.mem[index].clone());
+
+                        remaining.extend(remaining_symbols);
+                        remaining_symbols = remaining;
+                    } else {
+                        value.push(s);
                     }
-                    let mut extended = self.mem[index].clone();
-                    extended.extend(remaining_symbols);
-                    remaining_symbols = extended;
                 }
                 Symbol::Ap => {
-                    ap += 1;
+                    ap.push(Symbol::Ap);
                 },
                 Symbol::Value(_val) => {
                     value.push(s.clone());
@@ -216,201 +246,162 @@ impl State {
                     break;
                 },
                 Symbol::Inc => {
-                    if ap < 1 {
-                        value.push(Symbol::Inc);
-                    } else {
-                        ap -= 1;
-                        let (op1, remaining) = self.eval(remaining_symbols.clone());
-                        remaining_symbols = remaining;
-                        let val = unwrap_single_value(op1);
-                        value.push(wrap_single_val(val+1));
-                    }
+                    let (op1, remaining) = self.eval(remaining_symbols.clone());
+                    remaining_symbols = remaining;
+                    let val = unwrap_single_value(op1);
+                    value.push(wrap_single_val(val+1));
                     break;
                 },
                 Symbol::Dec => {
-                    if ap < 1 {
-                        value.push(Symbol::Inc);
-                    } else {
-                        ap -= 1;
-                        let (op1, remaining) = self.eval(remaining_symbols.clone());
-                        remaining_symbols = remaining;
-                        let val = unwrap_single_value(op1);
-                        value.push(wrap_single_val(val-1));
-                    }
+                    let (op1, remaining) = self.eval(remaining_symbols.clone());
+                    remaining_symbols = remaining;
+                    let val = unwrap_single_value(op1);
+                    value.push(wrap_single_val(val-1));
                     break;
                 },
-                Symbol::Sum => {
-                    if ap < 2 {
-                        value.push(Symbol::Sum);
-                        if ap == 1 {
-                            ap-=1;
-                            value.push(Symbol::Ap);
-                            panic!("Extra ap detected.");
-                        }
-                    } else {
-                        ap -= 2;
-                        let (op1, remaining) = self.eval(remaining_symbols.clone());
-                        let (op2, remaining) = self.eval(remaining);
-                        remaining_symbols = remaining;
-                        let val1 = unwrap_single_value(op1);
-                        let val2 = unwrap_single_value(op2);
-                        value.push(wrap_single_val(val1+val2));
-                    }
+                Symbol::Add => {
+                    let (op1, remaining) = self.eval(remaining_symbols.clone());
+                    let (op2, remaining) = self.eval(remaining);
+                    remaining_symbols = remaining;
+                    let val1 = unwrap_single_value(op1);
+                    let val2 = unwrap_single_value(op2);
+                    value.push(wrap_single_val(val1+val2));
                     break;
                 },
                 Symbol::Mul => {
-                    if ap < 2 {
-                        value.push(Symbol::Sum);
-                        if ap == 1 {
-                            ap-=1;
-                            value.push(Symbol::Ap);
-                            panic!("Extra ap detected.");
-                        }
-                    } else {
-                        ap -= 2;
-                        let (op1, remaining) = self.eval(remaining_symbols.clone());
-                        let (op2, remaining) = self.eval(remaining);
-                        remaining_symbols = remaining;
-                        let val1 = unwrap_single_value(op1);
-                        let val2 = unwrap_single_value(op2);
-                        value.push(wrap_single_val(val1*val2));
-                    }
+                    let (op1, remaining) = self.eval(remaining_symbols.clone());
+                    let (op2, remaining) = self.eval(remaining);
+                    remaining_symbols = remaining;
+                    let val1 = unwrap_single_value(op1);
+                    let val2 = unwrap_single_value(op2);
+                    value.push(wrap_single_val(val1*val2));
                     break;
                 },
                 Symbol::Div => {
-                    if ap < 2 {
-                        value.push(Symbol::Sum);
-                        if ap == 1 {
-                            ap-=1;
-                            value.push(Symbol::Ap);
-                            panic!("Extra ap detected.");
-                        }
-                    } else {
-                        ap -= 2;
-                        let (op1, remaining) = self.eval(remaining_symbols.clone());
-                        let (op2, remaining) = self.eval(remaining);
-                        remaining_symbols = remaining;
-                        let val1 = unwrap_single_value(op1);
-                        let val2 = unwrap_single_value(op2);
-                        value.push(wrap_single_val(val1/val2));
-                    }
-                    break;
-                },
-                Symbol::Eq => {
-                    if ap < 2 {
-                        value.push(Symbol::Sum);
-                        if ap == 1 {
-                            ap-=1;
-                            value.push(Symbol::Ap);
-                            panic!("Extra ap detected.");
-                        }
-                    } else {
-                        ap -= 2;
-                        let (op1, remaining) = self.eval(remaining_symbols.clone());
-                        let (op2, remaining) = self.eval(remaining);
-                        remaining_symbols = remaining;
-                        let val1 = unwrap_single_value(op1);
-                        let val2 = unwrap_single_value(op2);
-                        value.push(if val1 == val2 {
-                            Symbol::TChoice
-                        } else {
-                            Symbol::FChoice
-                        })
-                    }
+                    let (op1, remaining) = self.eval(remaining_symbols.clone());
+                    let (op2, remaining) = self.eval(remaining);
+                    remaining_symbols = remaining;
+                    let val1 = unwrap_single_value(op1);
+                    let val2 = unwrap_single_value(op2);
+                    value.push(wrap_single_val(val1/val2));
                     break;
                 },
                 Symbol::Neg => {
-                    if ap < 1 {
-                        value.push(Symbol::Neg);
-                    } else {
-                        ap -= 1;
-                        let (op1, remaining) = self.eval(remaining_symbols.clone());
-                        remaining_symbols = remaining;
-                        let val = unwrap_single_value(op1);
-                        value.push(wrap_single_val(-val));
-                    }
+                    let (op1, remaining) = self.eval(remaining_symbols.clone());
+                    remaining_symbols = remaining;
+                    let val = unwrap_single_value(op1);
+                    value.push(wrap_single_val(-val));
                     break;
                 },
                 Symbol::Cons => {
-                    println!("Cons ap: {} - remaining {:?}", ap, remaining_symbols);
-                    if ap < 2 {
-                        if ap == 1 {
-                            ap-=1;
-                            value.push(Symbol::Ap);
-                            panic!("Extra ap detected.");
-                        }
-                        value.push(Symbol::Cons);
-                    } else {
-                        ap -= 2;
-                        let (op1, remaining) = self.eval(remaining_symbols.clone());
-                        let (op2, remaining) = self.eval(remaining);
-                        let mut ops: Vec<Symbol> = op1.to_vec();
-                        ops.extend(op2);
-                        let mut values: Vec<i64> = Vec::new();
-                        for op in ops {
-                            match op {
-                                Symbol::Value(vec) => {
-                                    values.extend(vec);
-                                },
-                                _ => {
-                                    println!("Symbol: {:?}", op);
-                                    panic!("Awe, snap!");
-                                }
+                    println!("Cons ap: {} - remaining {:?}", ap.len(), remaining_symbols);
+                    let (op1, remaining) = self.eval(remaining_symbols.clone());
+                    let (op2, remaining) = self.eval(remaining);
+                    let mut ops: Vec<Symbol> = op1.to_vec();
+                    ops.extend(op2);
+                    let mut values: Vec<i64> = Vec::new();
+                    for op in ops {
+                        match op {
+                            Symbol::Value(vec) => {
+                                values.extend(vec);
+                            },
+                            _ => {
+                                println!("Symbol: {:?}", op);
+                                panic!("Awe, snap!");
                             }
-                            
                         }
-                        remaining_symbols = remaining.to_vec();
-                        value.push(Symbol::Value(values));
+                        
                     }
+                    remaining_symbols = remaining.to_vec();
+                    value.push(Symbol::Value(values));
                     break;
                 },
-                Symbol::SComb => {
-                    if ap < 3 {
-                        if ap > 0 {
-                            panic!("Extra ap detected.");
-                        }
-                        value.push(Symbol::SComb);
+                Symbol::Eq => {
+                    let (x0, remaining) = self.eval(remaining_symbols.clone());
+                    let (x1, remaining) = self.eval(remaining);
+                    let val1 = unwrap_single_value(x0);
+                    let val2 = unwrap_single_value(x1);
+                    remaining_symbols = Vec::new();
+                    remaining_symbols.push(if val1 == val2 {
+                        Symbol::TChoice
                     } else {
-                        ap -= 3;
-                        let (x0, remaining) = self.eval(remaining_symbols.clone());
-                        let (x1, remaining) = self.eval(remaining);
-                        let (x2, remaining) = self.eval(remaining);
-                        println!("SComb x0: {:?} x1: {:?} x2: {:?} remaining: {:?}", x0, x1, x2, remaining);
-                        let mut replacement = Vec::new();
-                        replacement.push(Symbol::Ap);
-                        replacement.push(Symbol::Ap);
-                        replacement.extend(x0);
-                        replacement.extend(x2.clone());
-                        replacement.push(Symbol::Ap);
-                        replacement.extend(x1);
-                        replacement.extend(x2);
-                        replacement.extend(remaining);
-                        remaining_symbols = replacement;
-                    }
+                        Symbol::FChoice
+                    });
+                    remaining_symbols.extend(remaining);
+                },
+                Symbol::SComb => {
+                    //let x0 = remaining_symbols.pop();
+                    //let x1 = remaining_symbols.pop();
+                    //let x2 = remaining_symbols.pop();
+                    let (x0, remaining) = self.eval(remaining_symbols.clone());
+                    let (x1, remaining) = self.eval(remaining);
+                    let (x2, remaining) = self.eval(remaining);
+                    //let remaining = remaining_symbols;
+                    println!("SComb x0: {:?} x1: {:?} x2: {:?} remaining: {:?}", x0, x1, x2, remaining);
+                    let mut replacement = Vec::new();
+                    replacement.push(Symbol::Ap);
+                    replacement.push(Symbol::Ap);
+                    replacement.extend(x0);
+                    replacement.extend(x2.clone());
+                    replacement.push(Symbol::Ap);
+                    replacement.extend(x1);
+                    replacement.extend(x2);
+                    replacement.extend(remaining);
+                    remaining_symbols = replacement;
                     println!("SComb remaining: {:?}", &remaining_symbols);
                 },
                 Symbol::CComb => {
-                    if ap < 3 {
-                        if ap > 0 {
-                            panic!("Extra ap detected.");
-                        }
-                        value.push(Symbol::CComb);
-                    } else {
-                        ap -= 3;
-                        let (op1, remaining) = self.eval(remaining_symbols.clone());
-                        let (op2, remaining) = self.eval(remaining);
-                        let (op3, remaining) = self.eval(remaining);
-                        println!("CComb op1: {:?} op2: {:?} op3: {:?} remaining: {:?}", op1, op2, op3, remaining);
-                        let mut replacement = Vec::new();
-                        replacement.push(Symbol::Ap);
-                        replacement.push(Symbol::Ap);
-                        replacement.extend(op1);
-                        replacement.extend(op3);
-                        replacement.extend(op2);
-                        replacement.extend(remaining);
-                        remaining_symbols = replacement;
-                    }
+                    let (x0, remaining) = self.eval(remaining_symbols.clone());
+                    let (x1, remaining) = self.eval(remaining);
+                    let (x2, remaining) = self.eval(remaining);
+                    println!("CComb op1: {:?} op2: {:?} op3: {:?} remaining: {:?}", x0, x1, x2, remaining);
+                    let mut replacement = Vec::new();
+                    replacement.push(Symbol::Ap);
+                    replacement.push(Symbol::Ap);
+                    replacement.extend(x0);
+                    replacement.extend(x2);
+                    replacement.extend(x1);
+                    replacement.extend(remaining);
+                    remaining_symbols = replacement;
                     println!("CComb remaining: {:?}", &remaining_symbols);
+                },
+                Symbol::BComb => {
+                    let (x0, remaining) = self.eval(remaining_symbols.clone());
+                    let (x1, remaining) = self.eval(remaining);
+                    let (x2, remaining) = self.eval(remaining);
+                    println!("BComb x0: {:?} x1: {:?} x2: {:?} remaining: {:?}", x0, x1, x2, remaining);
+                    let mut replacement = Vec::new();
+                    replacement.push(Symbol::Ap);
+                    replacement.extend(x0);
+                    replacement.push(Symbol::Ap);
+                    replacement.extend(x1);
+                    replacement.extend(x2);
+                    replacement.extend(remaining);
+                    remaining_symbols = replacement;
+                    println!("BComb replacement: {:?}", remaining_symbols);
+                    println!("BComb remaining: {:?}", &remaining_symbols);
+                },
+                Symbol::TChoice => {
+                    let (x0, remaining) = self.eval(remaining_symbols.clone());
+                    let (x1, remaining) = self.eval(remaining);
+                    println!("TChoice x0: {:?} x1: {:?} remaining: {:?}", x0, x1, remaining);
+                    let mut replacement = Vec::new();
+                    replacement.extend(x0);
+                    replacement.extend(remaining);
+                    remaining_symbols = replacement;
+                    println!("TChoice replacement: {:?}", remaining_symbols);
+                    println!("TChoice remaining: {:?}", &remaining_symbols);
+                },
+                Symbol::FChoice => {
+                    let (x0, remaining) = self.eval(remaining_symbols.clone());
+                    let (x1, remaining) = self.eval(remaining);
+                    println!("FChoice x0: {:?} x1: {:?} remaining: {:?}", x0, x1, remaining);
+                    let mut replacement = Vec::new();
+                    replacement.extend(x1);
+                    replacement.extend(remaining);
+                    remaining_symbols = replacement;
+                    println!("FChoice replacement: {:?}", remaining_symbols);
+                    println!("FChoice remaining: {:?}", &remaining_symbols);
                 },
                 _ => {
                     println!("Please implement {:?}", s);
@@ -418,15 +409,11 @@ impl State {
                 }
             };
         }
-        if ap > 0 {
-            println!("ap > 0 (ap=={})", ap);
+        if !ap.is_empty() {
+            println!("ap > 0 (ap=={})", ap.len());
+            value.extend(ap);
         }
-        while ap > 0{
-            value.insert(0, Symbol::Ap);
-            ap -= 1;
-            panic!("Extra ap detected.");
-        }
-        //println!("eval({:?}) -> (value: {:?}, remaining: {:?})", symbols, value, remaining_symbols);
+        println!("eval({:?}) -> (value: {:?}, remaining: {:?})", symbols, value, remaining_symbols);
         (value, remaining_symbols)
     }
 }
@@ -458,24 +445,47 @@ fn wrap_single_val(val: i64) -> Symbol {
     Symbol::Value(vals)
 }
 
+fn arity(s: &Symbol) -> usize {
+    match s {
+        Symbol::Inc => 1,
+        Symbol::Dec => 1,
+        Symbol::Add => 2,
+        Symbol::Mul => 2,
+        Symbol::Div => 2,
+        Symbol::Lt => 2,
+        Symbol::Eq => 2,
+        Symbol::Neg => 1,
+        Symbol::Cons => 2,
+        Symbol::Car => 1,
+        Symbol::Cdr => 1,
+        Symbol::IsNil => 1,
+        Symbol::SComb => 3,
+        Symbol::BComb => 3,
+        Symbol::CComb => 3,
+        Symbol::IComb => 3,
+        Symbol::TChoice => 2,
+        Symbol::FChoice => 2,
+        _ => 0,
+    }
+}
+
 #[derive(Clone,Debug)]
 enum Symbol {
     Value(Vec<i64>),
     Variable(String),
     Ap,
-    Cons, //(or Pair)
     Eq,
-
+    Inc,
+    Dec,
+    Add,
+    Mul,
+    Div,
+    Neg,
+    Cons, //(or Pair)
     Car, //(First)
     Cdr, //(Tail)
     Nil, //(Empty List)
     IsNil, //(Is Empty List)
-    Inc,
-    Dec,
-    Sum,
-    Mul,
-    Div,
-    Neg,
     Lt,
     SComb,
     BComb,
