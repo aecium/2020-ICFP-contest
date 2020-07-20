@@ -45,11 +45,7 @@ fn main() {
     stacker::grow(1024 * 1024 * 100, || {
         galaxy.import(read_file_lines("galaxy.txt"));
     });
-
-    println!("{:?}", galaxy.data.get("galaxy"));
-    println!("{:?}", galaxy.data.get(":1338"));
-
-    println!("{:?}", galaxy.data.get(":1029"));
-    eval(":1029", &mut galaxy);
-    println!("{:?}", galaxy.data.get(":1029"));
+    println!("{:?}", galaxy.data.get(":1043"));
+    eval(":1043", &mut galaxy);
+    println!("{:?}", galaxy.data.get(":1043"));
 }

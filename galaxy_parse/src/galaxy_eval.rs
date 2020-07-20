@@ -31,109 +31,124 @@ fn eval_ops (op : &Ops) -> EvalOpsResult {
         if op.arity() > 0 {
             EvalOpsResult::Noop
         } else {
-            
-            //EvalOpsResult::NewOps(Ops::Nil)
             //find out my function by going down the left until it's not an Ap
             let op_type = find_op_type(op);
             //look up the arity of that function (maybe not needed)
             //create an iterator over all A0 elements of the list (but not the root!)
-            let mut arg_iter = left.into_iter().chain(right.into_iter());
+            let mut arg_iter = op.into_iter();
             //use iterator to compute A0 result
             let replacement_op = eval_op(op_type, &mut arg_iter);
             //recurse and see if the root can be reduced again (those crafty combinators)
             //return
-            EvalOpsResult::NewOps(Ops::Nil)
+            match eval_ops(&replacement_op) {
+                EvalOpsResult::Noop => EvalOpsResult::NewOps(replacement_op),
+                EvalOpsResult::NewOps(new) => EvalOpsResult::NewOps(new)
+            }
+            
         }
         } else {
             EvalOpsResult::Noop
         }
 }   
 
-fn eval_op<'a> (op: &Ops, input : &mut std::iter::Chain<OpsIterator<'a>, OpsIterator<'a>>) -> Ops {
+fn eval_op<'a> (op: &Ops, input : &mut OpsIterator) -> Ops {
+    dbg!(op);
     match op {
-        Cons => {
-//            let first = input.next().unwrap();
-//            let second = input.next().unwrap();
-//            let second_simplified = eval_ops(second);
-//            let first_num = match eval_ops(first) {
-//                None
-//            }
+        Ops::Cons => {
+            let first = input.next().unwrap();
+            let second = input.next().unwrap();
+            dbg!(first);
+            dbg!(second);
+            let terms = match (eval_ops(first), eval_ops(second)) {
+                (EvalOpsResult::Noop, EvalOpsResult::Noop) => (first.clone(),second.clone()),
+                (EvalOpsResult::Noop, EvalOpsResult::NewOps(right)) => (first.clone(),right),
+                (EvalOpsResult::NewOps(left), EvalOpsResult::Noop) => (left,second.clone()),
+                (EvalOpsResult::NewOps(left), EvalOpsResult::NewOps(right)) => (left,right),
+            };
+            match terms {
+                (Ops::Nil, Ops::Nil) => Ops::List(Vec::new()),
+                (first, Ops::Nil) => Ops::List(vec![first]),
+                (head,mut tail) => {
+                    if let Ops::List(ref mut vec) = tail {
+                        vec.push(head);
+                        tail
+                    } else {
+                        Ops::List(vec![head, tail])
+                    }
+                }
+            }
         },
-        Car => {
-
+        Ops::Car => {
+            unimplemented!()
         },
-        Cdr => {
-
+        Ops::Cdr => {
+            unimplemented!()
         },
-        Nil => {
-
+        Ops::IsNil => {
+            unimplemented!()
         },
-        IsNil => {
-
-        },
-        Inc => {
+        Ops::Inc => {
             let inop = input.next().unwrap();
             let op = eval_ops(inop);
             match op {
                 EvalOpsResult::Noop => {
                     // no new operation was found, use the old one and evaluate
                     if let Ops::Literal(x) = inop {
-                        return Ops::Literal(x + 1);
+                        Ops::Literal(x + 1)
                     } else {
                         panic!("Inc doesn't understand how to increment a {:?}", inop)
                     }
                 },
                 EvalOpsResult::NewOps(newop) => {
                     if let Ops::Literal(x) = newop {
-                        return Ops::Literal(x + 1);
+                        Ops::Literal(x + 1)
                     } else {
                         panic!("Inc doesn't understand how to increment a {:?}", newop);
                     }
                 }
-            };
+            }
         },
-        Dec => {
-          
+        Ops::Dec => {
+            unimplemented!()
         },
-        Sum => {
-
+        Ops::Sum => {
+            unimplemented!()
         },
-        Mul => {
-
+        Ops::Mul => {
+            unimplemented!()
         },
-        Div => {
-
+        Ops::Div => {
+            unimplemented!()
         },
-        Neg => {
-
+        Ops::Neg => {
+            unimplemented!()
         },
-        Eq => {
-
+        Ops::Eq => {
+            unimplemented!()
         },
-        Lt => {
-
+        Ops::Lt => {
+            unimplemented!()
         },
-        SComb => {
-
+        Ops::SComb => {
+            unimplemented!()
         },
-        BComb => {
-
+        Ops::BComb => {
+            unimplemented!()
         },
-        CComb => {
-
+        Ops::CComb => {
+            unimplemented!()
         },
-        IComb => {
-
+        Ops::IComb => {
+            unimplemented!()
         },
-        TChoice => {
-
+        Ops::TChoice => {
+            unimplemented!()
         },
-        FChoice => {
-
+        Ops::FChoice => {
+            unimplemented!()
         },
         _ => {
             panic!("Not implemented")
         }
     }
-    Ops::Nil
 }

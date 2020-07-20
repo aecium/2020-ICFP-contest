@@ -35,21 +35,7 @@ impl<'a> Iterator for OpsIterator<'a> {
     type Item = &'a Ops;
 
     fn next(&mut self) -> Option<&'a Ops> {
-        //pop first node off the stack, if nothings there, the iterator must be exhausted
-        let node = self.ops.pop();
-        node.and_then( |op| -> Option<&'a Ops>{
-            //am I arity zero? if yes return me
-            if op.arity() == 0 {
-                Some(op)
-            } else {
-                //put right children on the stack (only until they reach arity zero)        
-                if let Ops::Ap(_, right) = op {
-                    self.ops.push(&right);
-                };
-                //recurse, since I couldn't return something
-                self.next()
-            }
-        })
+        self.ops.pop()
     }
 }
 
@@ -73,13 +59,12 @@ impl<'a> IntoIterator for &'a Ops {
 
     fn into_iter(self) -> Self::IntoIter {
         let mut nodes = Vec::<&'a Ops>::new();
-        //push all the left kids
+        //push all the right kids along the left side
         let mut current_node : &'a Ops = self;
-        while let Ops::Ap(left, _ ) = current_node {
-            nodes.push(current_node);
+        while let Ops::Ap(left, right ) = current_node {
+            nodes.push(right);
             current_node = left;
         }
-        
         return OpsIterator {
             ops: nodes
         }
@@ -166,7 +151,9 @@ fn parse_list(input : &'_ str) -> IResult<&'_ str, Ops> {
                 nom::bytes::complete::tag(" )")
             ))
         )),
-        | (_open_paren, symbols, _close_paren) | Ops::List(symbols)
+        | (_open_paren, mut symbols, _close_paren) | {
+            symbols.reverse();
+            Ops::List(symbols)}
     ) (input)
 }
 
