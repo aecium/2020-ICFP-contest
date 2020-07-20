@@ -5,9 +5,10 @@ pub fn eval<'a> (label: &str, galaxy: &'a mut Galaxy) -> &'a Ops{
     let root = galaxy.data.get(label);
     dbg!(&root);
     let result = match root {
-        Some(op) => eval_ops(op, galaxy),
+        Some(op) => eval_ops(&op.clone(), galaxy),
         None => panic!("That address isn't in this universe!")
     };
+    dbg!(&result);
     if let EvalOpsResult::NewOps(op) = result {
         galaxy.data.insert(label.to_string(), op);
     }
@@ -23,6 +24,7 @@ fn find_op_type(op : &Ops) -> &Ops{
     }
 }
 
+#[derive(Debug)]
 enum EvalOpsResult {
     Noop,
     NewOps(Ops)
@@ -36,6 +38,7 @@ fn eval_ops (op : &Ops, galaxy : &mut Galaxy) -> EvalOpsResult {
         } else {
             //find out my function by going down the left until it's not an Ap
             let op_type = find_op_type(op);
+            dbg!(&op_type);
             //look up the arity of that function (maybe not needed)
             //create an iterator over all A0 elements of the list (but not the root!)
             let mut arg_iter = op.into_iter();
@@ -52,8 +55,9 @@ fn eval_ops (op : &Ops, galaxy : &mut Galaxy) -> EvalOpsResult {
     } else if let Ops::Variable(label) = op {
         let mut lookup_label = ":".to_owned();
         lookup_label.push_str(label);
+        dbg!(&lookup_label);
         let root = eval(&lookup_label, galaxy);
-        eval_ops(root, galaxy)
+        EvalOpsResult::NewOps(root.clone())
     } else {
         EvalOpsResult::Noop
     }

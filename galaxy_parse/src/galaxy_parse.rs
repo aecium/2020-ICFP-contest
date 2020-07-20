@@ -40,7 +40,7 @@ impl<'a> Iterator for OpsIterator<'a> {
 }
 
 impl Ops {
-    pub fn arity (&self) -> usize {
+    pub fn arity (&self) -> i128 {
         match self {
             Ops::Literal(_) | Ops::Variable(_) | Ops::List(_) | Ops::Nil => 0,
             Ops::Car | Ops::Cdr | Ops::Inc | Ops::Dec | Ops::Neg | Ops::IComb => 1,
